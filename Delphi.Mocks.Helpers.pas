@@ -59,10 +59,12 @@ type
     function IsUInt64: Boolean;
     function IsVariant: Boolean;
     function IsWord: Boolean;
+    function IsRecord: Boolean;
     function AsDouble: Double;
     function AsFloat: Extended;
     function AsSingle: Single;
     function AsPointer: Pointer;
+    function RecordIsEqualTo(const AValue: TValue): boolean;
   end;
 
 
@@ -202,6 +204,10 @@ begin
   begin
     Result := Left.AsVariant = Right.AsVariant;
   end else
+  if Left.IsRecord and Right.IsRecord then
+  begin
+    result := Left.RecordIsEqualTo(Right);
+  end else
   if Left.TypeInfo = Right.TypeInfo then
   begin
     Result := Left.AsPointer = Right.AsPointer;
@@ -318,6 +324,12 @@ begin
   Result := Kind in [tkChar, tkString, tkWChar, tkLString, tkWString, tkUString];
 end;
 
+function TValueHelper.IsRecord: Boolean;
+begin
+  result := Kind = tkRecord;
+end;
+
+
 function TValueHelper.IsTime: Boolean;
 begin
   Result := TypeInfo = System.TypeInfo(TTime);
@@ -340,6 +352,31 @@ end;
 
 
 
+
+function TValueHelper.RecordIsEqualTo(const AValue: TValue): boolean;
+var
+  rttiContext : TRttiContext;
+  rttiType : TRttiType;
+  Meth : TRttiMethod;
+  Param : TArray<TValue>;
+  res : TValue;
+begin
+  rttiContext := TRttiContext.Create;
+  rttiType := rttiContext.GetType(Self.TypeInfo);
+  if rttiType <> NIL then begin
+    Meth := rttiType.GetMethod('&op_Equality');
+    if assigned(Meth) then begin
+      Setlength(Param, 2);
+      Param[0] := Self;
+      Param[1] := AValue;
+      res := System.Rtti.Invoke(Meth.CodeAddress, Param, Meth.CallingConvention, Meth.ReturnType.Handle, Meth.IsStatic);
+      exit(res.AsBoolean);
+    end;
+  end;
+
+  // fallback method
+  result := Self.AsPointer = AValue.AsPointer;
+end;
 
 { TRttiTypeHelper }
 
